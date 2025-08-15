@@ -21,9 +21,12 @@
                         <label for="moduleSelect" class="form-label">Select Module:</label>
                         <select id="moduleSelect" class="form-select">
                             <option value="" selected disabled>Choose a module</option>
-                            {% for module in modules %}
-                            <option value="{{ module }}">{{ module }}</option>
-                            {% endfor %}
+                            <option value="SEN152">SEN152</option>
+                            <option value="OOP152">OOP152</option>
+                            <option value="IDB152">IDB152</option>
+                            <option value="ISP152">ISP152</option>
+                            <option value="FIT152">FIT152</option>
+                            <option value="TAS152">TAS152</option>
                         </select>
                     </div>
                 </div>
@@ -49,18 +52,19 @@
                         <div class="col-12">
                             <h3>Attendance List</h3>
                             <div class="table-responsive">
-                                <table class="table table-striped">
-                                    <thead>
-                                        <tr>
-                                            <th>Student Number</th>
-                                            <th>Name</th>
-                                            <th>Status</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody id="attendanceTableBody">
-                                        <!-- Filled by JavaScript -->
-                                    </tbody>
-                                </table>
+								<!-- Update the table section to include names -->
+								<table class="table table-striped">
+									<thead>
+										<tr>
+											<th>Student Number</th>
+											<th>Name</th>
+											<th>Status</th>
+										</tr>
+									</thead>
+									<tbody id="attendanceTableBody">
+										<!-- Filled by JavaScript -->
+									</tbody>
+								</table>
                             </div>
                         </div>
                     </div>
@@ -78,9 +82,12 @@
                         <label for="reportModule" class="form-label">Select Module:</label>
                         <select id="reportModule" class="form-select">
                             <option value="" selected disabled>Choose a module</option>
-                            {% for module in modules %}
-                            <option value="{{ module }}">{{ module }}</option>
-                            {% endfor %}
+                            <option value="SEN152">SEN152</option>
+                            <option value="OOP152">OOP152</option>
+                            <option value="IDB152">IDB152</option>
+                            <option value="ISP152">ISP152</option>
+                            <option value="FIT152">FIT152</option>
+                            <option value="TAS152">TAS152</option>
                         </select>
                     </div>
                 </div>
