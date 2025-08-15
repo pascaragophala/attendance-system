@@ -28,6 +28,7 @@ document.addEventListener('DOMContentLoaded', function() {
         })
         .then(response => response.json())
 		// Update the start attendance success handler
+		// Update the start attendance success handler
 		.then(data => {
 			if (data.success) {
 				startBtn.disabled = true;
@@ -36,9 +37,10 @@ document.addEventListener('DOMContentLoaded', function() {
 				attendanceControls.classList.remove('d-none');
 				checkInMessage.classList.add('d-none');
 				
-				// Show QR code
+				// Show QR code and link
 				document.getElementById('qrCodeSection').classList.remove('d-none');
 				document.getElementById('qrCodeImage').src = data.qr_code_url;
+				document.getElementById('checkinUrl').value = data.checkin_url;
 				
 				updateAttendanceList();
 			} else {
