@@ -1,7 +1,6 @@
 document.addEventListener('DOMContentLoaded', function() {
     const startBtn = document.getElementById('startBtn');
     const stopBtn = document.getElementById('stopBtn');
-    const checkinLink = document.getElementById('checkinLink');
     const moduleSelect = document.getElementById('moduleSelect');
     const attendanceControls = document.getElementById('attendanceControls');
     const attendanceTableBody = document.getElementById('attendanceTableBody');
@@ -31,13 +30,14 @@ document.addEventListener('DOMContentLoaded', function() {
                 stopBtn.disabled = false;
                 moduleSelect.disabled = true;
                 attendanceControls.classList.remove('d-none');
-                checkinLink.style.display = 'block';
                 
                 // Show QR code and link
                 document.getElementById('qrCodeImage').src = data.qr_code_url;
                 document.getElementById('checkinUrl').value = data.checkin_url;
                 
+                // Start polling for updates
                 updateAttendanceList();
+                setInterval(updateAttendanceList, 2000);  // Update every 2 seconds
             } else {
                 alert(data.message);
             }
@@ -55,7 +55,6 @@ document.addEventListener('DOMContentLoaded', function() {
                 startBtn.disabled = false;
                 stopBtn.disabled = true;
                 moduleSelect.disabled = false;
-                checkinLink.style.display = 'none';
                 reportModule.value = moduleSelect.value;
                 downloadFullBtn.disabled = false;
                 downloadAbsentBtn.disabled = false;
