@@ -37,16 +37,13 @@
                 </div>
                 
                 <div id="attendanceControls" class="d-none">
-                    <div class="row">
-                        <div class="col-md-6">
-                            <label for="studentNumber" class="form-label">Student Number:</label>
-                            <div class="input-group mb-3">
-                                <input type="text" id="studentNumber" class="form-control" placeholder="Enter student number">
-                                <button id="checkInBtn" class="btn btn-primary">Check In</button>
-                            </div>
-                            <div id="checkInMessage" class="alert d-none"></div>
-                        </div>
-                    </div>
+					<div id="qrCodeSection" class="row mb-4 d-none">
+						<div class="col-12 text-center">
+							<h4>Student Check-In QR Code</h4>
+							<img id="qrCodeImage" src="" alt="QR Code" class="img-fluid" style="max-width: 300px;">
+							<p class="mt-2">Scan this code to check in</p>
+						</div>
+					</div>
                     
                     <div class="row mt-3">
                         <div class="col-12">
