@@ -1,4 +1,5 @@
 from flask import Flask, render_template, request, jsonify, send_file
+from flask import send_from_directory
 import csv
 from io import BytesIO, StringIO
 from datetime import datetime
@@ -49,11 +50,17 @@ def generate_qr_code(url):
     img = qr.make_image(fill_color="black", back_color="white")
     return img
 
+# Add this route before the main application routes
+@app.route('/static/qrcodes/<path:filename>')
+def serve_qrcode(filename):
+    return send_from_directory('static/qrcodes', filename)
+    
 @app.route('/')
 def index():
     modules = ['SEN152', 'OOP152', 'IDB152', 'ISP152', 'FIT152', 'TAS152']
     return render_template('index.html', modules=modules)
 
+# Update the start_attendance route to use absolute URL
 @app.route('/start_attendance', methods=['POST'])
 def start_attendance():
     module = request.form.get('module')
@@ -62,7 +69,7 @@ def start_attendance():
     
     # Generate unique session ID
     session_id = str(uuid.uuid4())
-    qr_code_url = f"{request.host_url}checkin/{session_id}"
+    qr_code_url = f"https://{request.host}/checkin/{session_id}"  # Use absolute URL
     
     # Generate QR code
     img = generate_qr_code(qr_code_url)
@@ -80,12 +87,13 @@ def start_attendance():
     attendance_session['module'] = module
     attendance_session['present_students'] = set()
     attendance_session['session_id'] = session_id
-    attendance_session['qr_code_url'] = qr_code_path
+    attendance_session['qr_code_url'] = f"/static/qrcodes/{session_id}.png"  # Use web path
     
     return jsonify({
         'success': True, 
         'message': f'Attendance session started for {module}',
-        'qr_code_url': qr_code_path
+        'qr_code_url': attendance_session['qr_code_url'],
+        'checkin_url': qr_code_url  # Also return the direct URL
     })
 
 @app.route('/checkin/<session_id>')
