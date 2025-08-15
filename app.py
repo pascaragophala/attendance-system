@@ -5,12 +5,14 @@ from datetime import datetime
 import os
 import qrcode
 import uuid
+import atexit
 
 app = Flask(__name__)
 
 # File paths
 STUDENTS_FILE = 'students.txt'
-ATTENDANCE_FILE = 'attendance_records.txt'
+ATTENDANCE_DIR = 'attendance_data'
+os.makedirs(ATTENDANCE_DIR, exist_ok=True)
 
 # Global variables
 attendance_session = {
@@ -21,6 +23,19 @@ attendance_session = {
     'qr_code_url': None,
     'checkin_url': None
 }
+
+def get_attendance_file(module):
+    """Get the attendance file path for a module"""
+    return os.path.join(ATTENDANCE_DIR, f"{module}_attendance.csv")
+
+def init_attendance_files():
+    """Initialize attendance files for all modules"""
+    modules = ['SEN152', 'OOP152', 'IDB152', 'ISP152', 'FIT152', 'TAS152']
+    for module in modules:
+        filepath = get_attendance_file(module)
+        if not os.path.exists(filepath):
+            with open(filepath, 'w') as f:
+                f.write('student_number,name,module,status,date\n')
 
 def load_students():
     """Load student data from text file"""
@@ -39,20 +54,21 @@ def load_students():
                     })
     return students
 
-def load_attendance():
-    """Load attendance records from file"""
+def load_attendance(module):
+    """Load attendance records for a module"""
+    filepath = get_attendance_file(module)
     records = []
-    if os.path.exists(ATTENDANCE_FILE):
-        with open(ATTENDANCE_FILE, 'r') as f:
+    if os.path.exists(filepath):
+        with open(filepath, 'r') as f:
             reader = csv.DictReader(f)
-            for row in reader:
-                records.append(row)
+            records = list(reader)
     return records
 
-def save_attendance(records):
-    """Save attendance records to file"""
-    fieldnames = ['student_number', 'name', 'module', 'status', 'date']
-    with open(ATTENDANCE_FILE, 'w', newline='') as f:
+def save_attendance(module, records):
+    """Save attendance records for a module"""
+    filepath = get_attendance_file(module)
+    with open(filepath, 'w', newline='') as f:
+        fieldnames = ['student_number', 'name', 'module', 'status', 'date']
         writer = csv.DictWriter(f, fieldnames=fieldnames)
         writer.writeheader()
         writer.writerows(records)
@@ -178,32 +194,23 @@ def stop_attendance():
     module = attendance_session['module']
     date = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
     students = load_students()
-    attendance_records = load_attendance()
     
-    # Mark absent students
+    # Load existing records
+    records = load_attendance(module)
+    
+    # Add new records
     for student in students:
-        if student['student_number'] not in attendance_session['present_students']:
-            attendance_records.append({
-                'student_number': student['student_number'],
-                'name': student['name'],
-                'module': module,
-                'status': 'absent',
-                'date': date
-            })
-    
-    # Mark present students
-    for student_number in attendance_session['present_students']:
-        student = next((s for s in students if s['student_number'] == student_number), None)
-        attendance_records.append({
-            'student_number': student_number,
-            'name': student['name'] if student else '',
+        status = 'present' if student['student_number'] in attendance_session['present_students'] else 'absent'
+        records.append({
+            'student_number': student['student_number'],
+            'name': student['name'],
             'module': module,
-            'status': 'present',
+            'status': status,
             'date': date
         })
     
     # Save to file
-    save_attendance(attendance_records)
+    save_attendance(module, records)
     
     # Reset session
     attendance_session['active'] = False
@@ -218,10 +225,9 @@ def download_attendance():
     if not module:
         return jsonify({'success': False, 'message': 'Module not specified'})
     
-    records = load_attendance()
-    relevant_records = [r for r in records if r['module'] == module]
+    records = load_attendance(module)
     
-    if not relevant_records:
+    if not records:
         return jsonify({'success': False, 'message': 'No attendance records found for this module'})
     
     output = StringIO()
@@ -229,7 +235,7 @@ def download_attendance():
     
     if report_type == 'full':
         writer.writerow(['Student Number', 'Name', 'Status', 'Date'])
-        for record in relevant_records:
+        for record in records:
             writer.writerow([
                 record['student_number'],
                 record['name'],
@@ -238,7 +244,7 @@ def download_attendance():
             ])
     elif report_type == 'absent':
         writer.writerow(['Student Number', 'Name', 'Date'])
-        for record in relevant_records:
+        for record in records:
             if record['status'] == 'absent':
                 writer.writerow([
                     record['student_number'],
@@ -259,10 +265,12 @@ def download_attendance():
 if __name__ == '__main__':
     # Create necessary directories
     os.makedirs('static/qrcodes', exist_ok=True)
+    os.makedirs(ATTENDANCE_DIR, exist_ok=True)
     
-    # Initialize attendance file if it doesn't exist
-    if not os.path.exists(ATTENDANCE_FILE):
-        with open(ATTENDANCE_FILE, 'w') as f:
-            f.write('student_number,name,module,status,date\n')
+    # Initialize attendance files
+    init_attendance_files()
+    
+    # Ensure directories exist on exit
+    atexit.register(lambda: os.makedirs(ATTENDANCE_DIR, exist_ok=True))
     
     app.run(host='0.0.0.0', port=10000, debug=True)
