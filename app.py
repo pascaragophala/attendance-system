@@ -1,53 +1,54 @@
 from flask import Flask, render_template, request, jsonify, send_file
-from flask_sqlalchemy import SQLAlchemy
 import csv
 from io import StringIO
 from datetime import datetime
+import os
 
 app = Flask(__name__)
-app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///students.db'
-app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
-db = SQLAlchemy(app)
 
-# Database Models
-class Student(db.Model):
-    id = db.Column(db.Integer, primary_key=True)
-    student_number = db.Column(db.String(8), unique=True, nullable=False)
-    name = db.Column(db.String(100), nullable=False)
-    
-    def __repr__(self):
-        return f'<Student {self.student_number}>'
-
-class Attendance(db.Model):
-    id = db.Column(db.Integer, primary_key=True)
-    student_number = db.Column(db.String(8), nullable=False)
-    module = db.Column(db.String(10), nullable=False)
-    date = db.Column(db.String(20), nullable=False)
-    status = db.Column(db.String(10), nullable=False)  # 'present' or 'absent'
-    
-    def __repr__(self):
-        return f'<Attendance {self.student_number} {self.module} {self.status}>'
-
-# Initialize database
-with app.app_context():
-    db.create_all()
-    # Populate with sample student data if empty
-    if Student.query.count() == 0:
-        sample_students = [
-            {'student_number': '25302223', 'name': 'John Smith'},
-            {'student_number': '25302091', 'name': 'Emma Johnson'},
-            # Add all other students from the file
-        ]
-        for student in sample_students:
-            db.session.add(Student(student_number=student['student_number'], name=student['name']))
-        db.session.commit()
-
-# Global variables for attendance session
+# Global variables
 attendance_session = {
     'active': False,
     'module': None,
     'present_students': set()
 }
+
+attendance_records = []
+
+def load_students():
+    """Load student data from text file"""
+    students = []
+    if os.path.exists('students.txt'):
+        with open('students.txt', 'r') as f:
+            for line in f:
+                line = line.strip()
+                if line and '-' in line:
+                    parts = line.split('-', 1)
+                    student_number = parts[0].strip()
+                    name = parts[1].strip()
+                    students.append({
+                        'student_number': student_number,
+                        'name': name
+                    })
+    return students
+
+def save_attendance_to_file():
+    """Save attendance records to a CSV file"""
+    if not os.path.exists('attendance_records'):
+        os.makedirs('attendance_records')
+    
+    filename = f"attendance_records/attendance_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv"
+    with open(filename, 'w', newline='') as f:
+        writer = csv.writer(f)
+        writer.writerow(['Student Number', 'Name', 'Module', 'Status', 'Date'])
+        for record in attendance_records:
+            writer.writerow([
+                record['student_number'],
+                record.get('name', ''),
+                record['module'],
+                record['status'],
+                record['date']
+            ])
 
 @app.route('/')
 def index():
@@ -73,30 +74,31 @@ def stop_attendance():
     
     module = attendance_session['module']
     date = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+    students = load_students()
     
-    # Mark all students not present as absent
-    all_students = Student.query.all()
-    for student in all_students:
-        if student.student_number not in attendance_session['present_students']:
-            record = Attendance(
-                student_number=student.student_number,
-                module=module,
-                date=date,
-                status='absent'
-            )
-            db.session.add(record)
+    # Mark absent students
+    for student in students:
+        if student['student_number'] not in attendance_session['present_students']:
+            attendance_records.append({
+                'student_number': student['student_number'],
+                'name': student['name'],
+                'module': module,
+                'date': date,
+                'status': 'absent'
+            })
     
     # Mark present students
     for student_number in attendance_session['present_students']:
-        record = Attendance(
-            student_number=student_number,
-            module=module,
-            date=date,
-            status='present'
-        )
-        db.session.add(record)
+        student = next((s for s in students if s['student_number'] == student_number), None)
+        attendance_records.append({
+            'student_number': student_number,
+            'name': student['name'] if student else '',
+            'module': module,
+            'date': date,
+            'status': 'present'
+        })
     
-    db.session.commit()
+    save_attendance_to_file()
     attendance_session['active'] = False
     
     return jsonify({'success': True, 'message': f'Attendance session stopped for {module}'})
@@ -110,7 +112,9 @@ def check_in():
     if not student_number:
         return jsonify({'success': False, 'message': 'Please enter student number'})
     
-    student = Student.query.filter_by(student_number=student_number).first()
+    students = load_students()
+    student = next((s for s in students if s['student_number'] == student_number), None)
+    
     if not student:
         return jsonify({'success': False, 'message': 'Invalid student number'})
     
@@ -118,21 +122,25 @@ def check_in():
         return jsonify({'success': False, 'message': 'Already checked in'})
     
     attendance_session['present_students'].add(student_number)
-    return jsonify({'success': True, 'message': 'Checked in successfully', 'name': student.name})
+    return jsonify({
+        'success': True, 
+        'message': 'Checked in successfully',
+        'name': student['name']
+    })
 
 @app.route('/get_attendance_list')
 def get_attendance_list():
     if not attendance_session['active']:
         return jsonify({'success': False, 'message': 'No active attendance session'})
     
-    all_students = Student.query.all()
+    students = load_students()
     attendance_list = []
     
-    for student in all_students:
+    for student in students:
         attendance_list.append({
-            'student_number': student.student_number,
-            'name': student.name,
-            'status': 'present' if student.student_number in attendance_session['present_students'] else 'absent'
+            'student_number': student['student_number'],
+            'name': student['name'],
+            'status': 'present' if student['student_number'] in attendance_session['present_students'] else 'absent'
         })
     
     return jsonify({'success': True, 'data': attendance_list})
@@ -145,34 +153,31 @@ def download_attendance():
     if not module:
         return jsonify({'success': False, 'message': 'Module not specified'})
     
-    records = Attendance.query.filter_by(module=module).order_by(Attendance.date.desc(), Attendance.student_number).all()
+    relevant_records = [r for r in attendance_records if r['module'] == module]
     
-    if not records:
+    if not relevant_records:
         return jsonify({'success': False, 'message': 'No attendance records found'})
     
-    # Create CSV
     output = StringIO()
     writer = csv.writer(output)
     
     if report_type == 'full':
         writer.writerow(['Student Number', 'Name', 'Status', 'Date'])
-        for record in records:
-            student = Student.query.filter_by(student_number=record.student_number).first()
+        for record in relevant_records:
             writer.writerow([
-                record.student_number,
-                student.name if student else 'Unknown',
-                record.status,
-                record.date
+                record['student_number'],
+                record.get('name', ''),
+                record['status'],
+                record['date']
             ])
     elif report_type == 'absent':
         writer.writerow(['Student Number', 'Name', 'Date'])
-        for record in records:
-            if record.status == 'absent':
-                student = Student.query.filter_by(student_number=record.student_number).first()
+        for record in relevant_records:
+            if record['status'] == 'absent':
                 writer.writerow([
-                    record.student_number,
-                    student.name if student else 'Unknown',
-                    record.date
+                    record['student_number'],
+                    record.get('name', ''),
+                    record['date']
                 ])
     
     output.seek(0)
@@ -186,4 +191,4 @@ def download_attendance():
     )
 
 if __name__ == '__main__':
-    app.run(debug=True)
+    app.run(host='0.0.0.0', port=10000, debug=True)
