@@ -1,11 +1,9 @@
 document.addEventListener('DOMContentLoaded', function() {
     const startBtn = document.getElementById('startBtn');
     const stopBtn = document.getElementById('stopBtn');
-    const checkInBtn = document.getElementById('checkInBtn');
-    const studentNumberInput = document.getElementById('studentNumber');
+    const checkinLink = document.getElementById('checkinLink');
     const moduleSelect = document.getElementById('moduleSelect');
     const attendanceControls = document.getElementById('attendanceControls');
-    const checkInMessage = document.getElementById('checkInMessage');
     const attendanceTableBody = document.getElementById('attendanceTableBody');
     const reportModule = document.getElementById('reportModule');
     const downloadFullBtn = document.getElementById('downloadFullBtn');
@@ -27,26 +25,23 @@ document.addEventListener('DOMContentLoaded', function() {
             body: `module=${module}`
         })
         .then(response => response.json())
-		// Update the start attendance success handler
-		// Update the start attendance success handler
-		.then(data => {
-			if (data.success) {
-				startBtn.disabled = true;
-				stopBtn.disabled = false;
-				moduleSelect.disabled = true;
-				attendanceControls.classList.remove('d-none');
-				checkInMessage.classList.add('d-none');
-				
-				// Show QR code and link
-				document.getElementById('qrCodeSection').classList.remove('d-none');
-				document.getElementById('qrCodeImage').src = data.qr_code_url;
-				document.getElementById('checkinUrl').value = data.checkin_url;
-				
-				updateAttendanceList();
-			} else {
-				alert(data.message);
-			}
-		});
+        .then(data => {
+            if (data.success) {
+                startBtn.disabled = true;
+                stopBtn.disabled = false;
+                moduleSelect.disabled = true;
+                attendanceControls.classList.remove('d-none');
+                checkinLink.style.display = 'block';
+                
+                // Show QR code and link
+                document.getElementById('qrCodeImage').src = data.qr_code_url;
+                document.getElementById('checkinUrl').value = data.checkin_url;
+                
+                updateAttendanceList();
+            } else {
+                alert(data.message);
+            }
+        });
     });
     
     // Stop attendance session
@@ -60,6 +55,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 startBtn.disabled = false;
                 stopBtn.disabled = true;
                 moduleSelect.disabled = false;
+                checkinLink.style.display = 'none';
                 reportModule.value = moduleSelect.value;
                 downloadFullBtn.disabled = false;
                 downloadAbsentBtn.disabled = false;
@@ -70,56 +66,25 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     });
     
-    // Student check-in
-    checkInBtn.addEventListener('click', function() {
-        const studentNumber = studentNumberInput.value.trim();
-        if (!studentNumber) {
-            alert('Please enter student number');
-            return;
-        }
-        
-        fetch('/check_in', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/x-www-form-urlencoded',
-            },
-            body: `student_number=${studentNumber}`
-        })
+    // Update attendance list
+    function updateAttendanceList() {
+        fetch('/get_attendance_list')
         .then(response => response.json())
         .then(data => {
             if (data.success) {
-                checkInMessage.textContent = data.message;
-                checkInMessage.classList.remove('d-none', 'alert-danger');
-                checkInMessage.classList.add('alert-success');
-                studentNumberInput.value = '';
-                updateAttendanceList();
-            } else {
-                checkInMessage.textContent = data.message;
-                checkInMessage.classList.remove('d-none', 'alert-success');
-                checkInMessage.classList.add('alert-danger');
+                attendanceTableBody.innerHTML = '';
+                data.data.forEach(student => {
+                    const row = document.createElement('tr');
+                    row.innerHTML = `
+                        <td>${student.student_number}</td>
+                        <td>${student.name}</td>
+                        <td>${student.status === 'present' ? '✔️ Present' : '❌ Absent'}</td>
+                    `;
+                    attendanceTableBody.appendChild(row);
+                });
             }
         });
-    });
-    
-	// Update the row creation in updateAttendanceList()
-	function updateAttendanceList() {
-		fetch('/get_attendance_list')
-		.then(response => response.json())
-		.then(data => {
-			if (data.success) {
-				attendanceTableBody.innerHTML = '';
-				data.data.forEach(student => {
-					const row = document.createElement('tr');
-					row.innerHTML = `
-						<td>${student.student_number}</td>
-						<td>${student.name}</td>
-						<td>${student.status === 'present' ? '✔️ Present' : '❌ Absent'}</td>
-					`;
-					attendanceTableBody.appendChild(row);
-				});
-			}
-		});
-	}
+    }
     
     // Download reports
     downloadFullBtn.addEventListener('click', function() {
