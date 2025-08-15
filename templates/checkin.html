@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Check In - BBIS Attendance</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        body { padding: 20px; }
+        .checkin-form { max-width: 500px; margin: 0 auto; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="checkin-form">
+            <h2 class="text-center mb-4">BBIS Attendance Check-In</h2>
+            <div class="card">
+                <div class="card-body">
+                    <div class="mb-3">
+                        <label for="studentNumber" class="form-label">Student Number:</label>
+                        <input type="text" id="studentNumber" class="form-control" placeholder="Enter your student number">
+                    </div>
+                    <button id="checkInBtn" class="btn btn-primary w-100">Check In</button>
+                    <div id="checkInMessage" class="alert mt-3 d-none"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        document.getElementById('checkInBtn').addEventListener('click', function() {
+            const studentNumber = document.getElementById('studentNumber').value.trim();
+            const messageDiv = document.getElementById('checkInMessage');
+            
+            if (!studentNumber) {
+                messageDiv.textContent = 'Please enter your student number';
+                messageDiv.classList.remove('d-none', 'alert-success');
+                messageDiv.classList.add('alert-danger');
+                return;
+            }
+            
+            fetch('/api/check_in', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/x-www-form-urlencoded',
+                },
+                body: `student_number=${studentNumber}`
+            })
+            .then(response => response.json())
+            .then(data => {
+                messageDiv.textContent = data.message;
+                if (data.success) {
+                    messageDiv.classList.remove('d-none', 'alert-danger');
+                    messageDiv.classList.add('alert-success');
+                    document.getElementById('studentNumber').value = '';
+                } else {
+                    messageDiv.classList.remove('d-none', 'alert-success');
+                    messageDiv.classList.add('alert-danger');
+                }
+            });
+        });
+    </script>
+</body>
+</html>
