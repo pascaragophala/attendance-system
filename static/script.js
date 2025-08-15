@@ -11,9 +11,6 @@ document.addEventListener('DOMContentLoaded', function() {
     const downloadFullBtn = document.getElementById('downloadFullBtn');
     const downloadAbsentBtn = document.getElementById('downloadAbsentBtn');
     
-    let currentModule = null;
-    let attendanceInterval = null;
-    
     // Start attendance session
     startBtn.addEventListener('click', function() {
         const module = moduleSelect.value;
@@ -32,18 +29,12 @@ document.addEventListener('DOMContentLoaded', function() {
         .then(response => response.json())
         .then(data => {
             if (data.success) {
-                currentModule = module;
                 startBtn.disabled = true;
                 stopBtn.disabled = false;
                 moduleSelect.disabled = true;
                 attendanceControls.classList.remove('d-none');
                 checkInMessage.classList.add('d-none');
-                
-                // Start polling for attendance updates
                 updateAttendanceList();
-                attendanceInterval = setInterval(updateAttendanceList, 5000);
-                
-                alert(data.message);
             } else {
                 alert(data.message);
             }
@@ -58,16 +49,13 @@ document.addEventListener('DOMContentLoaded', function() {
         .then(response => response.json())
         .then(data => {
             if (data.success) {
-                clearInterval(attendanceInterval);
                 startBtn.disabled = false;
                 stopBtn.disabled = true;
                 moduleSelect.disabled = false;
-                alert(data.message);
-                
-                // Enable download buttons for this module
-                reportModule.value = currentModule;
+                reportModule.value = moduleSelect.value;
                 downloadFullBtn.disabled = false;
                 downloadAbsentBtn.disabled = false;
+                alert(data.message);
             } else {
                 alert(data.message);
             }
@@ -92,7 +80,7 @@ document.addEventListener('DOMContentLoaded', function() {
         .then(response => response.json())
         .then(data => {
             if (data.success) {
-                checkInMessage.textContent = `Checked in: ${data.name} (${studentNumber})`;
+                checkInMessage.textContent = data.message;
                 checkInMessage.classList.remove('d-none', 'alert-danger');
                 checkInMessage.classList.add('alert-success');
                 studentNumberInput.value = '';
@@ -105,25 +93,25 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     });
     
-    // Update attendance list
-    function updateAttendanceList() {
-        fetch('/get_attendance_list')
-        .then(response => response.json())
-        .then(data => {
-            if (data.success) {
-                attendanceTableBody.innerHTML = '';
-                data.data.forEach(student => {
-                    const row = document.createElement('tr');
-                    row.innerHTML = `
-                        <td>${student.student_number}</td>
-                        <td>${student.name}</td>
-                        <td>${student.status === 'present' ? '✔️ Present' : '❌ Absent'}</td>
-                    `;
-                    attendanceTableBody.appendChild(row);
-                });
-            }
-        });
-    }
+	// Update the row creation in updateAttendanceList()
+	function updateAttendanceList() {
+		fetch('/get_attendance_list')
+		.then(response => response.json())
+		.then(data => {
+			if (data.success) {
+				attendanceTableBody.innerHTML = '';
+				data.data.forEach(student => {
+					const row = document.createElement('tr');
+					row.innerHTML = `
+						<td>${student.student_number}</td>
+						<td>${student.name}</td>
+						<td>${student.status === 'present' ? '✔️ Present' : '❌ Absent'}</td>
+					`;
+					attendanceTableBody.appendChild(row);
+				});
+			}
+		});
+	}
     
     // Download reports
     downloadFullBtn.addEventListener('click', function() {
@@ -182,7 +170,7 @@ document.addEventListener('DOMContentLoaded', function() {
         document.body.removeChild(form);
     });
     
-    // Enable/disable download buttons based on module selection
+    // Enable/disable download buttons
     reportModule.addEventListener('change', function() {
         const module = this.value;
         downloadFullBtn.disabled = !module;
