@@ -8,6 +8,10 @@ import uuid
 
 app = Flask(__name__)
 
+# File paths
+STUDENTS_FILE = 'students.txt'
+ATTENDANCE_FILE = 'attendance_records.txt'
+
 # Global variables
 attendance_session = {
     'active': False,
@@ -18,13 +22,11 @@ attendance_session = {
     'checkin_url': None
 }
 
-attendance_records = []
-
 def load_students():
     """Load student data from text file"""
     students = []
-    if os.path.exists('students.txt'):
-        with open('students.txt', 'r') as f:
+    if os.path.exists(STUDENTS_FILE):
+        with open(STUDENTS_FILE, 'r') as f:
             for line in f:
                 line = line.strip()
                 if line and '-' in line:
@@ -36,6 +38,24 @@ def load_students():
                         'name': name
                     })
     return students
+
+def load_attendance():
+    """Load attendance records from file"""
+    records = []
+    if os.path.exists(ATTENDANCE_FILE):
+        with open(ATTENDANCE_FILE, 'r') as f:
+            reader = csv.DictReader(f)
+            for row in reader:
+                records.append(row)
+    return records
+
+def save_attendance(records):
+    """Save attendance records to file"""
+    fieldnames = ['student_number', 'name', 'module', 'status', 'date']
+    with open(ATTENDANCE_FILE, 'w', newline='') as f:
+        writer = csv.DictWriter(f, fieldnames=fieldnames)
+        writer.writeheader()
+        writer.writerows(records)
 
 def generate_qr_code(url):
     """Generate QR code image"""
@@ -68,7 +88,7 @@ def start_attendance():
     
     # Generate unique session ID and URLs
     session_id = str(uuid.uuid4())
-    checkin_url = f"https://{request.host}/checkin/{session_id}"  # Absolute URL
+    checkin_url = f"https://{request.host}/checkin/{session_id}"
     
     # Generate and save QR code
     img = generate_qr_code(checkin_url)
@@ -88,23 +108,14 @@ def start_attendance():
         'success': True, 
         'message': f'Attendance session started for {module}',
         'qr_code_url': attendance_session['qr_code_url'],
-        'checkin_url': checkin_url,
-        'session_id': session_id
+        'checkin_url': checkin_url
     })
-
-@app.route('/checkin')
-def checkin_redirect():
-    """Redirect to current active session or show expired message"""
-    if attendance_session['active']:
-        return render_template('checkin.html', 
-                             session_id=attendance_session['session_id'])
-    return render_template('session_expired.html')
 
 @app.route('/checkin/<session_id>')
 def checkin_page(session_id):
     if not attendance_session['active'] or attendance_session['session_id'] != session_id:
         return render_template('session_expired.html')
-    return render_template('checkin.html', session_id=session_id)
+    return render_template('checkin.html')
 
 @app.route('/api/check_in', methods=['POST'])
 def api_check_in():
@@ -125,10 +136,21 @@ def api_check_in():
         return jsonify({'success': False, 'message': 'Already checked in'})
     
     attendance_session['present_students'].add(student_number)
+    
+    # Return updated attendance list
+    attendance_list = []
+    for s in students:
+        attendance_list.append({
+            'student_number': s['student_number'],
+            'name': s['name'],
+            'status': 'present' if s['student_number'] in attendance_session['present_students'] else 'absent'
+        })
+    
     return jsonify({
         'success': True, 
         'message': f'Checked in successfully: {student["name"]}',
-        'name': student['name']
+        'name': student['name'],
+        'attendance_list': attendance_list
     })
 
 @app.route('/get_attendance_list')
@@ -156,6 +178,7 @@ def stop_attendance():
     module = attendance_session['module']
     date = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
     students = load_students()
+    attendance_records = load_attendance()
     
     # Mark absent students
     for student in students:
@@ -164,8 +187,8 @@ def stop_attendance():
                 'student_number': student['student_number'],
                 'name': student['name'],
                 'module': module,
-                'date': date,
-                'status': 'absent'
+                'status': 'absent',
+                'date': date
             })
     
     # Mark present students
@@ -175,35 +198,17 @@ def stop_attendance():
             'student_number': student_number,
             'name': student['name'] if student else '',
             'module': module,
-            'date': date,
-            'status': 'present'
+            'status': 'present',
+            'date': date
         })
     
-    # Save to CSV
-    save_attendance_to_file()
+    # Save to file
+    save_attendance(attendance_records)
     
     # Reset session
     attendance_session['active'] = False
     
     return jsonify({'success': True, 'message': f'Attendance session stopped for {module}'})
-
-def save_attendance_to_file():
-    """Save attendance records to a CSV file"""
-    if not os.path.exists('attendance_records'):
-        os.makedirs('attendance_records')
-    
-    filename = f"attendance_records/attendance_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv"
-    with open(filename, 'w', newline='') as f:
-        writer = csv.writer(f)
-        writer.writerow(['Student Number', 'Name', 'Module', 'Status', 'Date'])
-        for record in attendance_records:
-            writer.writerow([
-                record['student_number'],
-                record['name'],
-                record['module'],
-                record['status'],
-                record['date']
-            ])
 
 @app.route('/download_attendance', methods=['POST'])
 def download_attendance():
@@ -213,10 +218,11 @@ def download_attendance():
     if not module:
         return jsonify({'success': False, 'message': 'Module not specified'})
     
-    relevant_records = [r for r in attendance_records if r['module'] == module]
+    records = load_attendance()
+    relevant_records = [r for r in records if r['module'] == module]
     
     if not relevant_records:
-        return jsonify({'success': False, 'message': 'No attendance records found'})
+        return jsonify({'success': False, 'message': 'No attendance records found for this module'})
     
     output = StringIO()
     writer = csv.writer(output)
@@ -253,6 +259,10 @@ def download_attendance():
 if __name__ == '__main__':
     # Create necessary directories
     os.makedirs('static/qrcodes', exist_ok=True)
-    os.makedirs('attendance_records', exist_ok=True)
+    
+    # Initialize attendance file if it doesn't exist
+    if not os.path.exists(ATTENDANCE_FILE):
+        with open(ATTENDANCE_FILE, 'w') as f:
+            f.write('student_number,name,module,status,date\n')
     
     app.run(host='0.0.0.0', port=10000, debug=True)
