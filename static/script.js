@@ -27,18 +27,24 @@ document.addEventListener('DOMContentLoaded', function() {
             body: `module=${module}`
         })
         .then(response => response.json())
-        .then(data => {
-            if (data.success) {
-                startBtn.disabled = true;
-                stopBtn.disabled = false;
-                moduleSelect.disabled = true;
-                attendanceControls.classList.remove('d-none');
-                checkInMessage.classList.add('d-none');
-                updateAttendanceList();
-            } else {
-                alert(data.message);
-            }
-        });
+		// Update the start attendance success handler
+		.then(data => {
+			if (data.success) {
+				startBtn.disabled = true;
+				stopBtn.disabled = false;
+				moduleSelect.disabled = true;
+				attendanceControls.classList.remove('d-none');
+				checkInMessage.classList.add('d-none');
+				
+				// Show QR code
+				document.getElementById('qrCodeSection').classList.remove('d-none');
+				document.getElementById('qrCodeImage').src = data.qr_code_url;
+				
+				updateAttendanceList();
+			} else {
+				alert(data.message);
+			}
+		});
     });
     
     // Stop attendance session
